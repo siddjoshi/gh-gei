@@ -1264,4 +1264,89 @@ public class GithubApi
             StartColumn = (int)scanningAlertInstance["location"]["start_column"],
             EndColumn = (int)scanningAlertInstance["location"]["end_column"]
         };
+
+    public virtual async Task ArchiveRepo(string org, string repo)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}";
+        await _client.PatchAsync(url, new { archived = true });
+    }
+
+    public virtual async Task<bool> IsRepoArchived(string org, string repo)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}";
+        var response = await _client.GetAsync(url);
+        var data = JObject.Parse(response);
+        return (bool)data["archived"];
+    }
+
+    public virtual async Task<RepositorySettings> GetRepositorySettings(string org, string repo)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}";
+        var response = await _client.GetAsync(url);
+        var data = JObject.Parse(response);
+
+        return new RepositorySettings
+        {
+            Description = (string)data["description"],
+            Homepage = (string)data["homepage"],
+            Visibility = (string)data["visibility"],
+            HasIssues = (bool)data["has_issues"],
+            HasProjects = (bool)data["has_projects"],
+            HasWiki = (bool)data["has_wiki"],
+            DefaultBranch = (string)data["default_branch"],
+            AllowSquashMerge = (bool)(data["allow_squash_merge"] ?? true),
+            AllowMergeCommit = (bool)(data["allow_merge_commit"] ?? true),
+            AllowRebaseMerge = (bool)(data["allow_rebase_merge"] ?? true),
+            DeleteBranchOnMerge = (bool)(data["delete_branch_on_merge"] ?? false),
+            IsArchived = (bool)data["archived"],
+        };
+    }
+
+    public virtual async Task UpdateRepositorySettings(string org, string repo, object settings)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}";
+        await _client.PatchAsync(url, settings);
+    }
+
+    public virtual async Task<IEnumerable<string>> GetRepositoryTopics(string org, string repo)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}/topics";
+        var response = await _client.GetAsync(url);
+        var data = JObject.Parse(response);
+        return data["names"]?.ToObject<string[]>() ?? Array.Empty<string>();
+    }
+
+    public virtual async Task SetRepositoryTopics(string org, string repo, IEnumerable<string> topics)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}/topics";
+        await _client.PutAsync(url, new { names = topics });
+    }
+
+    public virtual async Task<IEnumerable<string>> GetBranches(string org, string repo)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}/branches?per_page=100";
+        return await _client.GetAllAsync(url)
+            .Select(b => (string)b["name"])
+            .ToListAsync();
+    }
+
+    public virtual async Task<JObject> GetBranchProtection(string org, string repo, string branch)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}/branches/{branch.EscapeDataString()}/protection";
+        try
+        {
+            var response = await _client.GetAsync(url);
+            return JObject.Parse(response);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    public virtual async Task SetBranchProtection(string org, string repo, string branch, object protection)
+    {
+        var url = $"{_apiUrl}/repos/{org.EscapeDataString()}/{repo.EscapeDataString()}/branches/{branch.EscapeDataString()}/protection";
+        await _client.PutAsync(url, protection);
+    }
 }
